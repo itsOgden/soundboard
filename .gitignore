@@ -27,3 +27,6 @@ yarn-error.log*
 my_certificate.cer
 my_signing_key.pfx
 private_key.pvk
+
+# Jetbrains
+.idea

@@ -2,13 +2,14 @@ import { readlink } from 'fs'
 import React, { useRef, useState, useEffect } from 'react'
 import Pad from './pad'
 import Recorder from './Recorder'
+import {Sound, SoundGroup} from "../electron/electron";
+import PadGroup from "./padGroup";
 const { myIpcRenderer } = window
 
 
 
 const Controller : React.FunctionComponent = () => {
-    const [paths, setPaths] = useState<string[]>()
-    const [padNames, setPadNames] = useState<string[]>()
+    const [sounds, setSounds] = useState<Sound[]>()
     const [outputs, setOutputs] = useState<MediaDeviceInfo[]>()
     
     const [selectedPrimaryOutput, setSelectedPrimaryOutput] = useState<string>('default')
@@ -67,13 +68,10 @@ const Controller : React.FunctionComponent = () => {
             return 0
         })
 
-        // Load Pad File Paths and names
+        // Load Sounds
 
-        let loaded_paths = localStorage.getItem("paths");
-        if (loaded_paths) setPaths(JSON.parse(loaded_paths))
-
-        let loaded_names = localStorage.getItem("names");
-        if (loaded_names) setPadNames(JSON.parse(loaded_names))
+        let loaded_sounds = localStorage.getItem("sounds")
+        if(loaded_sounds) setSounds(JSON.parse(loaded_sounds))
 
         // Load Volume Sliders
 
@@ -109,13 +107,10 @@ const Controller : React.FunctionComponent = () => {
                 loadConfig()
             })
         
-        myIpcRenderer.on('APP_listedFiles', (result) => {
-           setPaths(result.paths)
-           setPadNames(result.fileNames)
-           localStorage.setItem("dir", result.dir)
-           localStorage.setItem("paths", JSON.stringify(result.paths))
-           localStorage.setItem("names", JSON.stringify(result.fileNames))
-
+        myIpcRenderer.on('APP_listedFiles', ({dir, sounds}) => {
+            setSounds(sounds)
+            localStorage.setItem("dir", dir)
+            localStorage.setItem("sounds", JSON.stringify(sounds))
         })        
     }, [])
     
@@ -141,7 +136,16 @@ const Controller : React.FunctionComponent = () => {
         localStorage.setItem("volume", val.toString())
         setSliderStyle(e.currentTarget, val)
     }
-    
+
+    const soundGroups: Record<string, Sound[]> = {}
+    if(sounds && sounds.length){
+        sounds.forEach((sound) => {
+            const directory = sound.directory ?? 'default'
+            if(!soundGroups[directory]) soundGroups[directory] = []
+            soundGroups[directory].push(sound)
+        })
+    }
+    const soundGroupKeys = Object.keys(soundGroups).sort((a, _b) => a === 'default' ? -1 : 1)
 
     return(
     <div id="controller">   
@@ -184,14 +188,15 @@ const Controller : React.FunctionComponent = () => {
 
 
             <div id="pads">
-                {paths && paths.map((path, index) => 
-                    <Pad    key={index} 
-                            outputs={ [selectedPrimaryOutput, selectedSecondaryOutput] } 
-                            source={path} 
-                            name={padNames && padNames[index]}
-                            volume={volume}
-                            virtualVolume={virtualVolume}>
-                    </Pad>
+                {soundGroups && soundGroupKeys.map((group) =>
+                    <PadGroup
+                        sounds={soundGroups[group]}
+                        title={group}
+                        outputs={ [selectedPrimaryOutput, selectedSecondaryOutput] }
+                        volume={volume}
+                        virtualVolume={virtualVolume}
+                    >
+                    </PadGroup>
                 )}
             </div>
     </div>

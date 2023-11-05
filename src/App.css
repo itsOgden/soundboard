@@ -53,6 +53,23 @@ header {
     padding: 10px;
     width: 140px;
     height: 90px;
+    cursor: pointer;
+}
+
+.pad-group{
+    width: 100%;
+}
+
+.pad-group-pads{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em;
+}
+
+.pad-group-title{
+    text-transform: capitalize;
+    font-size: 1.4em;
+    font-weight: normal;
 }
 
 button {

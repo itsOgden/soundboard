@@ -13,6 +13,17 @@ interface Bind {
     name:string
 }
 
+export interface Sound {
+    filename: string
+    path: string
+    directory?: string
+}
+
+export interface SoundGroup {
+    title?: string
+    sounds: Sound[]
+}
+
 
 export default class Main {
     static mainWindow: Electron.BrowserWindow;
@@ -119,35 +130,47 @@ export default class Main {
     }
 
     private static async listAudioFiles(dir : string) {
-        let paths : string[] = []
-        let fileNames : string[] = []
+        let sounds : Sound[] = []
 
-        await fspromise.readdir(dir).then((files)  => {
+        await fspromise.readdir(dir).then(async (files) => {
             for (const file of files) {
                 let filePath = path.join(dir, file)
-                if (mime.getType(filePath) === 'audio/mpeg' || mime.getType(filePath) === 'audio/wav' || mime.getType(filePath) === 'audio/ogg') {
-                    paths.push(path.join(dir, file))
-                    fileNames.push(file)
+                const mimeType = mime.getType(filePath)
+                if (mimeType === 'audio/mpeg' || mimeType === 'audio/wav' || mimeType === 'audio/ogg') {
+                    sounds.push({
+                        path: filePath,
+                        filename: file,
+                    })
+                } else {
+                    const directory = await this.listAudioFiles(filePath)
+                    directory.forEach((sound) => {
+                        sounds.push({
+                            ...sound,
+                            directory: file,
+                        })
+                    })
                 }
             }
-            
         })
 
-        return [paths, fileNames]
-    
+        return sounds
+
+    }
+
+    private static listedFiles(event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent, dir: string){
+        this.listAudioFiles(dir).then((sounds) => {
+            let load = {
+                dir: dir,
+                sounds,
+            }
+
+            event.sender.send('APP_listedFiles', load)
+        })
     }
 
     private static listenerListFiles() {
         ipcMain.on('APP_listFiles', (event, dir) => {
-            this.listAudioFiles(dir).then(([paths, files]) => {
-                let load = {
-                    dir: dir, 
-                    paths: paths,
-                    fileNames: files
-                }
-
-                event.sender.send('APP_listedFiles', load)
-            })
+            this.listedFiles(event, dir)
         })
     }
 
@@ -163,16 +186,9 @@ export default class Main {
             dialog.showOpenDialog({properties: ['openDirectory']})
             .then((result) => {
                 dir = result.filePaths[0]
+                dir = result.filePaths[0]
                 if (dir) {
-                    this.listAudioFiles(dir).then(([paths, files]) => {
-                        let load = {
-                            dir: dir,
-                            paths: paths,
-                            fileNames: files
-                        }
-
-                        event.sender.send('APP_listedFiles', load)
-                    })
+                    this.listedFiles(event, dir)
                 }
             }).catch((err) => {
                 console.log(err)
